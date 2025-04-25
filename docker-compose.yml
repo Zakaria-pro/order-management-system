@@ -1,0 +1,79 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: ./apps/frontend/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:3001
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    # Remove the overlapping volumes and use watch instead
+    volumes:
+      - /app/node_modules
+      - /app/apps/frontend/node_modules
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/frontend
+          target: /app/apps/frontend
+          ignore:
+            - node_modules/
+            - .next/
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/order_management
+      - PORT=3001
+      - NODE_ENV=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    # Remove the overlapping volumes and use watch instead
+    volumes:
+      - /app/node_modules
+      - /app/apps/backend/node_modules
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/backend
+          target: /app/apps/backend
+          ignore:
+            - node_modules/
+            - dist/
+
+  postgres:
+    # This part stays the same
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=order_management
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
